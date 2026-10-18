@@ -1,6 +1,7 @@
 import json
 import re
 import sqlite3
+from contextlib import contextmanager
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,12 +23,20 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.initialize()
 
+    @contextmanager
     def conn(self):
         db = sqlite3.connect(str(self.path), timeout=30)
-        db.row_factory = sqlite3.Row
-        db.execute("PRAGMA busy_timeout=30000")
-        db.execute("PRAGMA foreign_keys=ON")
-        return db
+        try:
+            db.row_factory = sqlite3.Row
+            db.execute("PRAGMA busy_timeout=30000")
+            db.execute("PRAGMA foreign_keys=ON")
+            yield db
+            db.commit()
+        except BaseException:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
     def initialize(self):
         with self.conn() as db:

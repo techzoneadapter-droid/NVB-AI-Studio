@@ -795,8 +795,10 @@ class MainWindow(QMainWindow):
         if not newer:
             QMessageBox.information(self, "Cập nhật", f"Đã ở bản mới nhất: {__version__}.")
             return
-        if QMessageBox.question(self, "Có bản mới", f"Phiên bản {tag} đã phát hành. Mở trang tải bộ cài mới?") == QMessageBox.Yes:
-            QDesktopServices.openUrl(QUrl(result["html_url"]))
+        if QMessageBox.question(self, "Có bản mới", f"Phiên bản {tag} đã phát hành. Tải bộ cài Windows mới?") == QMessageBox.Yes:
+            installers = [a for a in result.get("assets", []) if a.get("name", "").lower().endswith(".exe")]
+            url = installers[0]["browser_download_url"] if installers else result["html_url"]
+            QDesktopServices.openUrl(QUrl(url))
 
     def refresh_all(self):
         if not hasattr(self, "metrics"):
