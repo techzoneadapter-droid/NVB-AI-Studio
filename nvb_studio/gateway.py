@@ -1,5 +1,6 @@
 """Adapt the documented sub2gen async completion API, not its internal tables."""
 import base64
+from contextlib import contextmanager
 import ipaddress
 import json
 import mimetypes
@@ -134,9 +135,26 @@ class Gateway:
             if state in ("completed", "success", "succeeded", "done"):
                 return response
             if state in ("failed", "error", "cancelled", "canceled"):
-                raise GatewayError(str(response.get("error") or response.get("message") or state)[:500])
+                raise GatewayError(str(response.get("error_message") or response.get("error") or response.get("message") or state)[:500])
             time.sleep(5)
         raise GatewayError("Quá thời gian chờ; ID tác vụ được giữ lại để kiểm tra tiếp.")
+
+    @contextmanager
+    def _media_response(self, url):
+        # Never disclose the managed API key to a third-party CDN.
+        # Only send Authorization to exactly the configured sub2gen origin.
+        anonymous = requests.Session()
+        anonymous.trust_env = False
+        target = urlparse(self.base)
+        source = urlparse(url)
+        client = self.session if (
+            source.scheme == target.scheme and source.netloc == target.netloc
+        ) else anonymous
+        try:
+            with client.get(url, timeout=90, stream=True, allow_redirects=False) as result:
+                yield result
+        finally:
+            anonymous.close()
 
     def save_result(self, response, destination):
         dest = Path(destination)
@@ -148,13 +166,13 @@ class Gateway:
                 try:
                     info, data = raw.split(",", 1)
                     payload = base64.b64decode(data, validate=True)
-                except (ValueError, Exception):
+                except Exception:
                     continue
             elif raw.startswith("http"):
                 if not _is_safe_media_url(raw):
                     continue
                 try:
-                    with self.session.get(raw, timeout=90, stream=True, allow_redirects=False) as r:
+                    with self._media_response(raw) as r:
                         if not r.ok:
                             continue
                         chunks, total = [], 0

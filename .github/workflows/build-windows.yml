@@ -48,6 +48,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
           choco install innosetup --no-progress -y
+      - name: Smoke-test Windows GUI
+        shell: pwsh
+        run: |
+          $env:QT_QPA_PLATFORM = "offscreen"
+          python -c "from PyQt5.QtWidgets import QApplication; from nvb_studio.ui import MainWindow; app=QApplication([]); ui=MainWindow(); print(ui.windowTitle()); ui.close()"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows app
         shell: pwsh
         run: |
