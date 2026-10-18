@@ -1,0 +1,78 @@
+name: Windows Setup and Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip && pip install requests openpyxl keyring packaging
+      - name: Compile Python
+        run: python -m compileall -q app.py nvb_studio tests
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+  windows-setup:
+    needs: tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: x64
+      - name: Set version
+        shell: pwsh
+        run: |
+          $v = "0.1.${{ github.run_number }}"
+          "NVB_VERSION=$v" >> $env:GITHUB_ENV
+          "VERSION = '$v'" | Set-Content -Path nvb_studio/_build.py -Encoding utf8
+      - name: Install build tools
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+          choco install innosetup --no-progress -y
+      - name: Build Windows app
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onedir --windowed --name "NVB AI Studio" --paths . --collect-submodules keyring app.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "${env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$env:NVB_VERSION" "installer\NVB-AI-Studio.iss"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload Setup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NVB-AI-Studio-Setup
+          path: installer-output/*.exe
+          if-no-files-found: error
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.NVB_VERSION }}
+          name: NVB AI Studio v${{ env.NVB_VERSION }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: installer-output/*.exe
+          body: |
+            Windows installer for NVB AI Studio.
+            Backend required: sub2gen must be installed and configured separately.
+            Download the Setup .exe, install, then configure Gateway and API key.
