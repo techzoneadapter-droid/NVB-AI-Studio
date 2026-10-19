@@ -430,30 +430,138 @@ class MainWindow(QMainWindow):
 
     def make_accounts(self):
         w, lay = self.page()
-        lay.addLayout(line_title("Quản lý tài khoản Flow", "Kết nối gateway qua API key của sub2gen, không nhập tài khoản Google vào ứng dụng."))
+        lay.addLayout(line_title("Đăng nhập Google Flow", "Dùng Chrome đang đăng nhập sẵn — không cài repo hoặc nhập token thủ công."))
         frame, body = panel_layout()
-        body.addWidget(label("1. Cài và chạy sub2gen trên máy theo README của repo gốc.\n2. Mở Admin tại http://localhost:8000 và đổi mật khẩu mặc định.\n3. Kết nối phiên Google Flow bằng worker/extension của sub2gen.\n4. Tạo API key có quyền chạy model và điền vào đây."))
-        body.addWidget(button("Mở sub2gen Admin", lambda: QDesktopServices.openUrl(QUrl(self.settings["gateway_url"]))))
-        body.addWidget(button("Hướng dẫn sub2gen trên GitHub", lambda: QDesktopServices.openUrl(QUrl("https://github.com/agmmnn/sub2gen"))))
-        body.addWidget(label("Gateway URL"))
-        self.gateway_edit = QLineEdit()
-        body.addWidget(self.gateway_edit)
-        body.addWidget(label("API Key (lưu bằng Windows Credential Manager nếu chọn ghi nhớ)"))
-        self.key_edit = QLineEdit()
-        self.key_edit.setEchoMode(QLineEdit.Password)
-        body.addWidget(self.key_edit)
-        self.remember = QCheckBox("Ghi nhớ API key an toàn trên thiết bị")
-        body.addWidget(self.remember)
-        actions = QHBoxLayout()
-        actions.addWidget(button("Lưu kết nối", self.save_connection, primary=True))
-        actions.addWidget(button("Kiểm tra Gateway", self.test_connection))
-        body.addLayout(actions)
-        self.account_status = label("Chưa kết nối")
+        body.addWidget(label(
+            "1. Bấm Kết nối Chrome: ứng dụng tự chuẩn bị sub2gen và tạo khóa kết nối.\n"
+            "2. Chỉ lần đầu: Chrome yêu cầu bạn cấp quyền cho tiện ích sub2gen Worker.\n"
+            "3. Mở tiện ích → Options → chọn My account, dán khóa rồi Import/Sync account.\n"
+            "4. Quay lại app bấm Kiểm tra tài khoản; lần sau dùng lại kết nối đã cấp quyền.\n\n"
+            "Lưu ý: Chrome không cho chương trình khác đọc phiên đăng nhập hiện tại mà chưa được cấp quyền."
+        ))
+        self.auto_login_button = button("◎  KẾT NỐI VỚI CHROME ĐANG MỞ", self.login_with_chrome, primary=True)
+        body.addWidget(self.auto_login_button)
+        self.auto_progress = label("Sẵn sàng. Lần đầu có thể mất vài phút để tự cài Python và phụ thuộc cho engine.")
+        body.addWidget(self.auto_progress)
+        row = QHBoxLayout()
+        row.addWidget(button("① Mở cài đặt tiện ích Chrome", self.open_extension_setup))
+        row.addWidget(button("② Sao chép khóa kết nối", self.copy_extension_key))
+        body.addLayout(row)
+        row2 = QHBoxLayout()
+        row2.addWidget(button("③ Kiểm tra tài khoản Flow", self.check_flow_account, primary=True))
+        row2.addWidget(button("Mở Google Flow", self.open_flow))
+        body.addLayout(row2)
+        self.account_status = label("Chưa kết nối tài khoản.")
         body.addWidget(self.account_status)
         lay.addWidget(frame)
+
+        advanced, more = panel_layout()
+        more.addWidget(label("Nâng cao: chỉ dùng khi bạn đã có gateway riêng"))
+        self.gateway_edit = QLineEdit()
+        more.addWidget(label("Gateway URL"))
+        more.addWidget(self.gateway_edit)
+        self.key_edit = QLineEdit()
+        self.key_edit.setEchoMode(QLineEdit.Password)
+        more.addWidget(label("API Key (ứng dụng sẽ tự điền ở chế độ Chrome)"))
+        more.addWidget(self.key_edit)
+        self.remember = QCheckBox("Ghi nhớ khóa trong Windows Credential Manager")
+        more.addWidget(self.remember)
+        actions = QHBoxLayout()
+        actions.addWidget(button("Lưu nâng cao", self.save_connection))
+        actions.addWidget(button("Kiểm tra Gateway", self.test_connection))
+        more.addLayout(actions)
+        lay.addWidget(advanced)
         lay.addStretch()
         QTimer.singleShot(0, self.load_connection)
         return w
+
+    def login_with_chrome(self):
+        from .engine import EngineManager
+        if getattr(self, "_flow_setup_thread", None) and self._flow_setup_thread.isRunning():
+            return
+        manager = EngineManager()
+        self._flow_engine = manager
+        self.auto_login_button.setEnabled(False)
+        self.auto_progress.setText("Đang chuẩn bị sub2gen tích hợp; lần đầu cần kết nối Internet...")
+        class EngineThread(QThread):
+            notice = pyqtSignal(str)
+            ready = pyqtSignal(str)
+            failed = pyqtSignal(str)
+            def run(inner):
+                try:
+                    manager.start(inner.notice.emit)
+                    inner.ready.emit(manager.managed_key())
+                except Exception as exc:
+                    inner.failed.emit(str(exc))
+        self._flow_setup_thread = EngineThread(self)
+        self._flow_setup_thread.notice.connect(self.auto_progress.setText)
+        self._flow_setup_thread.ready.connect(self.flow_ready)
+        self._flow_setup_thread.failed.connect(self.flow_failed)
+        self._flow_setup_thread.finished.connect(lambda: self.auto_login_button.setEnabled(True))
+        self._flow_setup_thread.start()
+
+    def flow_ready(self, key):
+        from .engine import BASE_URL
+        self.settings["gateway_url"] = BASE_URL
+        save_settings(self.settings)
+        self.secrets.set(key, remember=True)
+        self.gateway_edit.setText(BASE_URL)
+        self.key_edit.setText(key)
+        self.remember.setChecked(True)
+        self.auto_progress.setText("Engine sẵn sàng. Hãy cấp quyền tiện ích Chrome một lần.")
+        self.account_status.setText("Chưa thấy tài khoản đã đồng bộ; hãy mở tiện ích và chọn Import/Sync.")
+        self.open_extension_setup()
+
+    def flow_failed(self, reason):
+        self.auto_progress.setText("Không khởi động được engine: " + reason[:500])
+        QMessageBox.warning(self, "Kết nối Flow", reason[:1800])
+
+    def open_extension_setup(self):
+        from .engine import EngineManager, open_chrome_page
+        try:
+            folder = EngineManager().extension_folder()
+            QApplication.clipboard().setText(str(folder))
+            import subprocess
+            subprocess.Popen(["explorer.exe", "/select," + str(folder / "manifest.json")])
+            open_chrome_page("chrome://extensions/")
+            self.auto_progress.setText(
+                "Trong Chrome → bật Chế độ nhà phát triển → Tải tiện ích đã giải nén "
+                "→ chọn thư mục (đã chép đường dẫn). Tiện ích cần quyền duyệt web/cookie; chỉ chấp thuận nếu bạn tin tưởng."
+            )
+        except Exception as exc:
+            QMessageBox.warning(self, "Chrome", str(exc))
+
+    def copy_extension_key(self):
+        key = self.secrets.get()
+        if not key:
+            QMessageBox.information(self, "Chưa có khóa", "Bấm Kết nối với Chrome trước.")
+            return
+        QApplication.clipboard().setText(key)
+        self.auto_progress.setText("Khóa đã sao chép. Mở sub2gen Worker → Options, chọn My account, dán API Key, Save rồi Import/Sync account. Không dán khóa vào website lạ.")
+
+    def open_flow(self):
+        from .engine import open_chrome_page
+        try:
+            open_chrome_page("https://flow.google.com/")
+        except Exception as exc:
+            QMessageBox.warning(self, "Chrome", str(exc))
+
+    def check_flow_account(self):
+        from .engine import EngineManager
+        self.account_status.setText("Đang kiểm tra tài khoản...")
+        def verify():
+            health = Gateway(self.settings["gateway_url"], self.secrets.get()).health()
+            accounts = EngineManager().bind_available_accounts()
+            return health, accounts
+        self.async_call(verify, self.flow_account_status, "Kiểm tra Flow")
+
+    def flow_account_status(self, result):
+        health, account_count = result
+        self.gateway_status.setText("● Gateway: Hoạt động")
+        if account_count:
+            self.account_status.setText(f"Đã đồng bộ {account_count} tài khoản; có thể tạo ảnh thử.")
+        else:
+            self.account_status.setText("Engine đang chạy, nhưng chưa có tài khoản. Hãy mở extension, kết nối API key và Import/Sync account.")
 
     def make_settings(self):
         w, lay = self.page()
