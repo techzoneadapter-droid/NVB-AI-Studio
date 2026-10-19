@@ -199,7 +199,7 @@ class EngineManager:
         return session
 
     def managed_key(self):
-        """Provision one local managed key. No Google cookies leave the Chrome worker."""
+        """Provision one local managed key; extension imports Google cookies to localhost only."""
         try:
             import keyring
             existing = keyring.get_password(ENGINE_SERVICE, "managed-api-key")
