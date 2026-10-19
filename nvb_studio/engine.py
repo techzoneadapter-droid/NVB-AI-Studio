@@ -8,6 +8,7 @@ extension must be explicitly loaded and authorized by its owner once.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import secrets
 import shutil
@@ -77,7 +78,8 @@ class EngineManager:
                 "được build từ GitHub Actions. Không cần tự tải repo."
             )
         stamp = self.source / ".nvb-engine-ready"
-        if stamp.is_file():
+        archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if stamp.is_file() and stamp.read_text(encoding="utf-8").strip() == archive_hash:
             return
         self.root.mkdir(parents=True, exist_ok=True)
         temp = self.root / "unpacking"
@@ -105,7 +107,7 @@ class EngineManager:
         if self.source.exists():
             shutil.rmtree(self.source)
         temp.rename(self.source)
-        stamp.write_text("bundled\n", encoding="utf-8")
+        stamp.write_text(archive_hash, encoding="utf-8")
 
     def _admin_password(self):
         return self._secret("admin-password")
@@ -113,6 +115,7 @@ class EngineManager:
     def _env(self):
         env = os.environ.copy()
         env["SUB2GEN_ROOT"] = str(self.source)
+        env["RAILWAY_VOLUME_MOUNT_PATH"] = str(self.root / "persistent")
         env["SUB2GEN_ADMIN_USERNAME"] = "nvb-studio"
         env["SUB2GEN_ADMIN_PASSWORD"] = self._admin_password()
         env["SUB2GEN_API_KEY"] = self._secret("global-local-api-key")
@@ -197,9 +200,13 @@ class EngineManager:
 
     def managed_key(self):
         """Provision one local managed key. No Google cookies leave the Chrome worker."""
-        secret_store = SecretStore()
-        if secret_store.get():
-            return secret_store.get()
+        try:
+            import keyring
+            existing = keyring.get_password(ENGINE_SERVICE, "managed-api-key")
+            if existing:
+                return existing
+        except Exception:
+            pass
         session = self._admin()
         try:
             response = session.post(BASE_URL + "/api/admin/managed-apikeys",
@@ -215,16 +222,27 @@ class EngineManager:
             key = (response.json().get("key") or {}).get("api_key")
             if not key:
                 raise EngineError("Không nhận được API key từ engine.")
-            secret_store.set(key, remember=True)
-            if SecretStore().get() != key:
-                raise EngineError("Không lưu được khóa vào Windows Credential Manager.")
+            try:
+                import keyring
+                keyring.set_password(ENGINE_SERVICE, "managed-api-key", key)
+                if keyring.get_password(ENGINE_SERVICE, "managed-api-key") != key:
+                    raise EngineError("Không lưu được khóa engine vào Windows Credential Manager.")
+            except EngineError:
+                raise
+            except Exception as exc:
+                raise EngineError("Không lưu được khóa engine: " + str(exc)) from exc
+
             return key
         finally:
             session.close()
 
     def bind_available_accounts(self):
         """Associate only locally imported accounts with our managed key."""
-        key = SecretStore().get()
+        try:
+            import keyring
+            key = keyring.get_password(ENGINE_SERVICE, "managed-api-key")
+        except Exception:
+            key = None
         if not key:
             return 0
         session = self._admin()
