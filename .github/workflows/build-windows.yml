@@ -56,6 +56,8 @@ jobs:
           bun run --cwd apps/captcha-extension build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
+          python scripts/smoke_engine.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/package_engine.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item (Get-Command uv).Source engine-payload/uv.exe

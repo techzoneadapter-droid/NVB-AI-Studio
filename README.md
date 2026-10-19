@@ -1,53 +1,39 @@
-# NVB AI Studio
+# NVB AI Studio — Windows AI image/video batches
 
-Ứng dụng Windows 10/11 tạo ảnh và video AI hàng loạt thông qua [sub2gen](https://github.com/agmmnn/sub2gen), sử dụng PyQt5, hàng đợi SQLite, thư viện nhân vật, storyboard, thư viện kết quả và FFmpeg.
+[Download latest Windows Setup](https://github.com/techzoneadapter-droid/NVB-AI-Studio/releases/latest)
 
-## Tải Setup Windows
+## Đăng nhập qua Chrome đã có sẵn
 
-- [Tải bộ cài mới nhất (.exe) từ GitHub Releases](https://github.com/techzoneadapter-droid/NVB-AI-Studio/releases/latest)
-- [Theo dõi build tại GitHub Actions](https://github.com/techzoneadapter-droid/NVB-AI-Studio/actions/workflows/build-windows.yml)
+1. Cài Setup mới nhất, mở Tài khoản Flow, bấm KẾT NỐI VỚI CHROME ĐANG MỞ.
+2. App tự giải nén sub2gen đã đóng gói và tự cài các phụ thuộc Python lần đầu qua uv, dùng Internet; không yêu cầu Git/Python/Bun/uv riêng trên máy.
+3. Lần đầu duy nhất: app mở chrome://extensions, bật Developer mode rồi Load unpacked, chọn thư mục extension mà app đã sao chép vào clipboard.
+4. Trong sub2gen Worker → Options: chọn My account, dán khóa bằng nút Sao chép khóa kết nối trên app, lưu cấu hình và Import/Sync account.
+5. Quay lại app nhấn Kiểm tra tài khoản Flow. Khi báo đã đồng bộ thì tạo thử một ảnh.
 
-Mỗi lần push main, Actions chạy test, build PyInstaller + Inno Setup, tải artifact và phát hành bản Setup mới nếu tất cả thành công. Nút Cập nhật trong ứng dụng kiểm tra bản phát hành mới và mở link trực tiếp tới file cài đặt.
+Chrome không cho app đọc phiên/cookie của cửa sổ Chrome đang chạy khi người dùng chưa cấp quyền extension. Do đó **không thể tự đăng nhập hoàn toàn bằng một cú nhấp** mà không có bước phê duyệt Chrome một lần. Extension upstream xin quyền web và cookie rộng; đọc quyền trước khi chấp thuận. App không âm thầm cài tiện ích hoặc truy xuất cơ sở dữ liệu cookie của Chrome.
 
-## Yêu cầu
+## Chức năng
 
-Ứng dụng KHÔNG kèm sub2gen, tài khoản Flow hoặc credits. Cần tự thiết lập sub2gen theo hướng dẫn upstream.
+- PyQt5 desktop dark mode với 9 màn hình, nhiều dự án.
+- Import Excel, TXT, CSV và JSON thành batch ảnh/video.
+- Hồ sơ nhân vật với ảnh tham chiếu và mô tả ngoại hình chung.
+- Các chế độ Veo text-to-video, image-to-video, first/last, reference theo khả năng model.
+- Hàng đợi SQLite giữ job ID từ xa, tránh gửi lại nếu chưa rõ có tiêu credits.
+- Thư viện kết quả, lưu theo dự án, metadata JSON, ghép MP4 dùng FFmpeg.
+- Nút Cập nhật kiểm tra GitHub Releases và mở bộ cài mới.
 
-1. Cài Git, uv, Bun theo [README sub2gen](https://github.com/agmmnn/sub2gen).
-2. PowerShell: git clone https://github.com/agmmnn/sub2gen.git
-3. PowerShell: cd sub2gen
-4. PowerShell: uv run setup
-5. PowerShell: uv run sub2gen
-6. Vào http://localhost:8000 và đổi mật khẩu admin mặc định ngay.
-7. Đăng nhập Flow và ghép worker/Chrome Extension theo tài liệu sub2gen.
-8. Trong sub2gen API key manager, tạo key có quyền chạy mô hình và async jobs.
-9. Mở NVB AI Studio → Tài khoản Flow → nhập http://127.0.0.1:8000 và API key.
-10. Tạo dự án, thêm prompt vào hàng đợi, bắt đầu xử lý.
+## Giới hạn
 
-Cần cài FFmpeg nếu muốn ghép nhiều video theo thứ tự.
+- Dùng sub2gen không chính thức; Flow thay đổi giao thức hoặc credits có thể gây lỗi.
+- Engine sub2gen được pin commit 324038a6102817a88459ce193ad39472bab9d537 và build cùng Setup.
+- Python/phụ thuộc cần tải ở lần đầu; cần kết nối Internet. Lần sau engine dùng lại các gói đã tải.
+- Đã bổ sung test nội bộ engine nhưng **chưa thử bằng tài khoản Flow thực tế của bạn**.
+- Chưa có nhận diện khuôn mặt AI chuyên sâu, tự phân cảnh bằng LLM hoặc nút auto-cài Chrome extension im lặng.
 
-## Chạy từ source
+## Kỹ thuật
 
-- git clone https://github.com/techzoneadapter-droid/NVB-AI-Studio.git
-- cd NVB-AI-Studio
-- py -3.11 -m venv .venv
-- .venv\Scripts\python.exe -m pip install -r requirements.txt
-- .venv\Scripts\python.exe app.py
+Engine ở %LOCALAPPDATA%\NVB_AI_Studio\engine; dữ liệu được giữ trong thư mục persistent khi nâng cấp. Khóa lưu Windows Credential Manager, Chrome đăng nhập Google trong phiên đã được cấp quyền, backend chỉ lắng nghe 127.0.0.1:8000.
 
-## Các màn hình
+[Windows build Actions](https://github.com/techzoneadapter-droid/NVB-AI-Studio/actions/workflows/build-windows.yml)
 
-Tổng quan, Xưởng tạo ảnh, Xưởng tạo video, Nhân vật AI, Storyboard, Hàng đợi, Thư viện, Tài khoản Flow, Cài đặt.
-
-Hỗ trợ nhập TXT/CSV/XLSX/XLSM/JSON. Nhân vật gồm mô tả và tối đa ba ảnh mẫu. Các chế độ video gồm text, image, first/last frame và reference tùy giới hạn model. Hàng đợi lưu remote_id để tra cứu sau khi khởi động lại; không tự gửi lại job có thể đã trừ credits. Media hoàn thành được lưu theo thư mục dự án, kèm JSON metadata.
-
-## Những gì chưa có / chưa kiểm chứng
-
-Chưa chạy thử end-to-end bằng tài khoản Google Flow thực tế. sub2gen dùng giao thức không chính thức và có thể thay đổi. Đồng nhất nhân vật mới ở mức prompt + ảnh tham chiếu, chưa có bộ đánh giá danh tính AI tự động. Storyboard hỗ trợ chuẩn bị phân cảnh thủ công, chưa dùng AI để tự tách kịch bản. Bộ cài chỉ chứa ứng dụng desktop và không cài backend sub2gen. Nút cập nhật tải bộ cài mới, chưa cài đè im lặng. Không cam kết ẩn hoàn toàn trình duyệt vì khi xác minh đăng nhập có thể cần Chrome.
-
-## Kiến trúc và dữ liệu
-
-NVB AI Studio PyQt5 → SQLite job manager → Gateway HTTP API của sub2gen → Worker/session Google Flow. Không thay đổi mã nguồn sub2gen.
-
-Dữ liệu cục bộ: %LOCALAPPDATA%\NVB_AI_Studio. Kết quả: thư mục do người dùng chọn. API key ghi nhớ bằng Windows Credential Manager qua keyring; nếu không có secure storage sẽ chỉ giữ trong phiên hiện tại.
-
-Chỉ dùng tài khoản/credits bạn được phép sử dụng. Tuân thủ rate limits và xác minh từ Google Flow.
+Chạy source chỉ dành cho lập trình viên: cài requirements.txt và chạy python app.py. Bản source không chứa backend tích hợp; cần sử dụng Setup trên Releases để có chế độ kết nối tự động.
