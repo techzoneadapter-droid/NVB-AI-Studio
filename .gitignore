@@ -12,3 +12,6 @@ build/
 *.log
 .DS_Store
 .vscode/
+upstream-sub2gen/
+engine-payload/
+installer-output/

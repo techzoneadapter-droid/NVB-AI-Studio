@@ -36,6 +36,27 @@ jobs:
         with:
           python-version: '3.11'
           architecture: x64
+      - name: Checkout pinned sub2gen
+        uses: actions/checkout@v4
+        with:
+          repository: agmmnn/sub2gen
+          ref: 324038a6102817a88459ce193ad39472bab9d537
+          path: upstream-sub2gen
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: astral-sh/setup-uv@v6
+      - name: Compile bundled sub2gen and Chrome extension
+        shell: pwsh
+        run: |
+          Push-Location upstream-sub2gen
+          uv run setup
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          bun run --cwd apps/captcha-extension build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          python scripts/package_engine.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item (Get-Command uv).Source engine-payload/uv.exe
       - name: Set version
         shell: pwsh
         run: |
@@ -57,7 +78,7 @@ jobs:
       - name: Build Windows app
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onedir --windowed --name "NVB AI Studio" --paths . --collect-submodules keyring app.py
+          python -m PyInstaller --noconfirm --clean --onedir --windowed --name "NVB AI Studio" --paths . --collect-submodules keyring --add-data "engine-payload;engine-payload" app.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build installer
         shell: pwsh
