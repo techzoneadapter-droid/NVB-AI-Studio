@@ -48,6 +48,8 @@ jobs:
       - name: Compile bundled sub2gen and Chrome extension
         shell: pwsh
         run: |
+          python scripts/patch_upstream.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location upstream-sub2gen
           uv run setup
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
