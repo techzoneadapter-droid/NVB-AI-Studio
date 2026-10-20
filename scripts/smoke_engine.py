@@ -16,7 +16,7 @@ archive = Path("engine-payload/sub2gen.zip").resolve()
 if not archive.is_file():
     raise SystemExit("Missing installer engine archive")
 
-with tempfile.TemporaryDirectory(prefix="nvb-studio-smoke-") as dirname:
+with tempfile.TemporaryDirectory(prefix="nvb-studio-smoke-", ignore_cleanup_errors=True) as dirname:
     temp = Path(dirname)
     project = temp / "sub2gen"
     with zipfile.ZipFile(archive) as zf:
@@ -87,9 +87,20 @@ with tempfile.TemporaryDirectory(prefix="nvb-studio-smoke-") as dirname:
             print("PASS: clean production installation from packaged ZIP, "
                   "startup, admin login, API key provisioning")
         finally:
-            process.terminate()
+            # uv run spawns a child Python/Uvicorn process on Windows. Terminating
+            # uv alone leaves its child holding engine-smoke.log open (WinError 32).
+            # Kill the PROCESS TREE before removing the temporary directory.
+            if os.name == "nt":
+                try:
+                    subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                   capture_output=True, timeout=20, check=False)
+                except (OSError, subprocess.SubprocessError):
+                    pass
+            elif process.poll() is None:
+                process.terminate()
             try:
                 process.wait(timeout=15)
             except subprocess.TimeoutExpired:
                 process.kill()
+                process.wait(timeout=10)
             client.close()
