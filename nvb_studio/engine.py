@@ -200,14 +200,17 @@ class EngineManager:
         the user's permission to load it.
         """
         folder = self.root / "chrome-extension"
-        if self._validate_extension(folder):
-            return folder
         archive = bundled_path("engine-payload") / "sub2gen.zip"
         if not archive.is_file():
             raise EngineError(
                 "Bộ cài thiếu sub2gen.zip chứa tiện ích Chrome. "
                 "Hãy cài bản Setup mới nhất, không cần tự tải repo."
             )
+        payload_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if self._validate_extension(folder):
+            stamp = folder / ".nvb-payload-hash"
+            if stamp.is_file() and stamp.read_text(encoding="utf-8").strip() == payload_hash:
+                return folder
         self.root.mkdir(parents=True, exist_ok=True)
         staging = self.root / "chrome-extension.unpacking"
         if staging.exists():
@@ -237,8 +240,16 @@ class EngineManager:
                     "Hãy sử dụng Setup mới; không cần tự giải nén hoặc tải GitHub."
                 )
             if folder.exists():
-                shutil.rmtree(folder)
-            staging.rename(folder)
+                # Keep Chrome's unpacked extension path stable across upgrades.
+                # Reload the already-installed extension from chrome://extensions.
+                for new_file in staging.rglob("*"):
+                    if new_file.is_file():
+                        target_file = folder / new_file.relative_to(staging)
+                        target_file.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(new_file, target_file)
+            else:
+                staging.rename(folder)
+            (folder / ".nvb-payload-hash").write_text(payload_hash, encoding="utf-8")
         finally:
             if staging.exists():
                 shutil.rmtree(staging, ignore_errors=True)

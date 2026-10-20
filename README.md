@@ -1,49 +1,21 @@
-# NVB AI Studio — Windows AI image/video batches
+# NVB AI Studio — Tạo ảnh/video AI hàng loạt bằng Google Flow
 
-[Download latest Windows Setup](https://github.com/techzoneadapter-droid/NVB-AI-Studio/releases/latest)
+[Tải bộ cài Windows mới nhất](https://github.com/techzoneadapter-droid/NVB-AI-Studio/releases/latest)
 
-## Đăng nhập qua Chrome đã có sẵn
+## Kết nối Google Flow — chỉ một nút trong app
 
-1. Cài Setup mới nhất, mở Tài khoản Flow, bấm KẾT NỐI VỚI CHROME ĐANG MỞ.
-2. App tự giải nén sub2gen đã đóng gói và tự cài các phụ thuộc Python lần đầu qua uv, dùng Internet; không yêu cầu Git/Python/Bun/uv riêng trên máy.
-3. Lần đầu duy nhất: app mở chrome://extensions, bật Developer mode rồi Load unpacked, chọn thư mục extension mà app đã sao chép vào clipboard.
-4. Trong sub2gen Worker → Options: chọn My account, dán khóa bằng nút Sao chép khóa kết nối trên app, lưu cấu hình và Import/Sync account.
-5. Quay lại app nhấn Kiểm tra tài khoản Flow. Khi báo đã đồng bộ thì tạo thử một ảnh.
+1. Cài Setup và mở **Tài khoản Flow → KẾT NỐI GOOGLE FLOW**.
+2. App tự khởi động backend sub2gen, tạo API key và Pairing code (không yêu cầu tự cài repo) rồi tự sao chép **một mã kết nối**.
+3. Chỉ lần đầu hoặc sau khi cập nhật tiện ích: mở \`chrome://extensions\` (app tự mở), cài tiện ích sub2gen Worker từ thư mục app đã chuẩn bị nếu chưa có, hoặc bấm **Reload** nếu đã cài. Chrome yêu cầu người dùng cấp quyền.
+4. Mở popup tiện ích → bánh răng Options → khung **NVB AI Studio · Kết nối nhanh** → **Ctrl+V → Kết nối NVB AI Studio**. Tiện ích tự điền hai khóa, ghép nối và Sync Google account; app tự dò trạng thái.
+5. Khi app báo Đã kết nối, bắt đầu tạo ảnh/video.
 
-Chrome không cho app đọc phiên/cookie của cửa sổ Chrome đang chạy khi người dùng chưa cấp quyền extension. Do đó **không thể tự đăng nhập hoàn toàn bằng một cú nhấp** mà không có bước phê duyệt Chrome một lần. Extension upstream xin quyền web và cookie rộng; đọc quyền trước khi chấp thuận. App không âm thầm cài tiện ích hoặc truy xuất cơ sở dữ liệu cookie của Chrome.
+**Không cần điền gateway URL, API key hoặc Pairing code riêng lẻ.** Chrome không cho phép phần mềm tự cài/chỉnh quyền extension của trình duyệt hiện tại một cách im lặng. Vì vậy bước cấp quyền/click một lần bên Chrome vẫn cần thiết.
 
-## Chức năng
+**Bảo mật:** mã một lần trên clipboard chứa API key nội bộ và Pairing code có hạn; không gửi mã đó cho người khác và không dán lên web khác. Extension chỉ nhận mã do app tạo cho localhost. Khi đã ghép nối, hãy sao chép một nội dung không nhạy cảm khác để xóa mã khỏi clipboard nếu cần.
 
-- PyQt5 desktop dark mode với 9 màn hình, nhiều dự án.
-- Import Excel, TXT, CSV và JSON thành batch ảnh/video.
-- Hồ sơ nhân vật với ảnh tham chiếu và mô tả ngoại hình chung.
-- Các chế độ Veo text-to-video, image-to-video, first/last, reference theo khả năng model.
-- Hàng đợi SQLite giữ job ID từ xa, tránh gửi lại nếu chưa rõ có tiêu credits.
-- Thư viện kết quả, lưu theo dự án, metadata JSON, ghép MP4 dùng FFmpeg.
-- Nút Cập nhật kiểm tra GitHub Releases và mở bộ cài mới.
+## Khả năng hiện có
 
-## Giới hạn
+Dự án độc lập, nhập Excel/TXT/CSV/JSON, ảnh tham chiếu nhân vật, xưởng ảnh/video, hàng đợi SQLite có phục hồi, thư viện kết quả, ghép MP4 bằng FFmpeg và nút Cập nhật qua GitHub Releases.
 
-- Dùng sub2gen không chính thức; Flow thay đổi giao thức hoặc credits có thể gây lỗi.
-- Engine sub2gen được pin commit 324038a6102817a88459ce193ad39472bab9d537 và build cùng Setup.
-- Python/phụ thuộc cần tải ở lần đầu; cần kết nối Internet. Lần sau engine dùng lại các gói đã tải.
-- Đã bổ sung test nội bộ engine nhưng **chưa thử bằng tài khoản Flow thực tế của bạn**.
-- Chưa có nhận diện khuôn mặt AI chuyên sâu, tự phân cảnh bằng LLM hoặc nút auto-cài Chrome extension im lặng.
-
-## Kỹ thuật
-
-Engine ở %LOCALAPPDATA%\NVB_AI_Studio\engine; dữ liệu được giữ trong thư mục persistent khi nâng cấp. Khóa lưu Windows Credential Manager, Chrome đăng nhập Google trong phiên đã được cấp quyền, backend chỉ lắng nghe 127.0.0.1:8000.
-
-[Windows build Actions](https://github.com/techzoneadapter-droid/NVB-AI-Studio/actions/workflows/build-windows.yml)
-
-Chạy source chỉ dành cho lập trình viên: cài requirements.txt và chạy python app.py. Bản source không chứa backend tích hợp; cần sử dụng Setup trên Releases để có chế độ kết nối tự động.
-
-
-### Chrome extension: ghép nối hai khóa riêng biệt
-
-- Mở NVB AI Studio → Tài khoản Flow → **Sao chép API key** và **Tạo mã ghép nối (10 phút)**.
-- Mở cửa sổ sub2gen Worker ở Chrome → bánh răng (Options): **WebSocket URL** = `ws://127.0.0.1:8000/worker_ws`; chế độ **My account**.
-- Dán API key vào **Managed API key**; dán mã một lần vào **Pairing code**. Đây là hai giá trị khác nhau.
-- Bấm **Save changes**, mở popup → **Reconnect**, rồi **Sync Google account**.
-- Cuối cùng trở lại app → **Kiểm tra tài khoản Flow**. Khi mã hết hạn, tạo mã mới trong app.
-- Không chia sẻ mã ghép nối, cookie, API key hoặc mật khẩu Google qua ảnh chụp màn hình.
+Phiên Flow dùng cơ chế không chính thức của sub2gen, có thể thay đổi theo chính sách Google. Chưa nghiệm thu tạo video/ảnh end-to-end bằng tài khoản Google Flow thực tế của người dùng.
