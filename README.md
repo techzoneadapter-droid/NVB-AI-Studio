@@ -37,3 +37,13 @@ Engine ở %LOCALAPPDATA%\NVB_AI_Studio\engine; dữ liệu được giữ trong
 [Windows build Actions](https://github.com/techzoneadapter-droid/NVB-AI-Studio/actions/workflows/build-windows.yml)
 
 Chạy source chỉ dành cho lập trình viên: cài requirements.txt và chạy python app.py. Bản source không chứa backend tích hợp; cần sử dụng Setup trên Releases để có chế độ kết nối tự động.
+
+
+### Chrome extension: ghép nối hai khóa riêng biệt
+
+- Mở NVB AI Studio → Tài khoản Flow → **Sao chép API key** và **Tạo mã ghép nối (10 phút)**.
+- Mở cửa sổ sub2gen Worker ở Chrome → bánh răng (Options): **WebSocket URL** = `ws://127.0.0.1:8000/worker_ws`; chế độ **My account**.
+- Dán API key vào **Managed API key**; dán mã một lần vào **Pairing code**. Đây là hai giá trị khác nhau.
+- Bấm **Save changes**, mở popup → **Reconnect**, rồi **Sync Google account**.
+- Cuối cùng trở lại app → **Kiểm tra tài khoản Flow**. Khi mã hết hạn, tạo mã mới trong app.
+- Không chia sẻ mã ghép nối, cookie, API key hoặc mật khẩu Google qua ảnh chụp màn hình.

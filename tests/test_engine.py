@@ -45,3 +45,27 @@ class EngineTests(unittest.TestCase):
                 self.assertTrue((folder / "background.js").is_file())
                 self.assertEqual(folder, manager.extension_folder())
                 self.assertIn("chrome-extension", str(folder))
+
+    def test_pairing_request_is_authorized_and_local(self):
+        from unittest.mock import MagicMock
+        from nvb_studio.engine import EngineManager
+        manager = EngineManager()
+        mock_response = MagicMock()
+        mock_response.ok = True
+        mock_response.json.return_value = {"pairing_code": "ABCD-5678", "expires_in": 600}
+        mock_session = MagicMock()
+        mock_session.__enter__.return_value = mock_session
+        mock_session.post.return_value = mock_response
+        with patch.object(manager, "_health", return_value=True), \
+             patch("nvb_studio.engine.requests.Session", return_value=mock_session):
+            result = manager.create_worker_pairing_code("secret-api-key", ttl_seconds=600)
+        self.assertEqual(result["pairing_code"], "ABCD-5678")
+        args, kwargs = mock_session.post.call_args
+        self.assertEqual(args[0], "http://127.0.0.1:8000/api/workers/pairing-code")
+        self.assertEqual(kwargs["json"], {"ttl_seconds": 600})
+        self.assertEqual(kwargs["headers"]["Authorization"], "Bearer secret-api-key")
+
+    def test_pairing_requires_api_key(self):
+        from nvb_studio.engine import EngineManager, EngineError
+        with self.assertRaises(EngineError):
+            EngineManager().create_worker_pairing_code("")

@@ -296,6 +296,36 @@ class EngineManager:
         finally:
             session.close()
 
+    def create_worker_pairing_code(self, api_key, ttl_seconds=600):
+        """Request a short-lived worker pairing code from the LOCAL engine.
+
+        This is distinct from the persistent managed API key. The code is never
+        written to a file or log; Chrome consumes it only once during pairing.
+        """
+        if not api_key or not str(api_key).strip():
+            raise EngineError("Chưa có khóa API nội bộ. Hãy bấm Kết nối Chrome trước.")
+        if not self._health():
+            raise EngineError("Engine sub2gen chưa chạy. Hãy bấm Kết nối Chrome trước.")
+        with requests.Session() as session:
+            session.trust_env = False
+            response = session.post(
+                BASE_URL + "/api/workers/pairing-code",
+                headers={"Authorization": "Bearer " + str(api_key).strip()},
+                json={"ttl_seconds": max(30, min(int(ttl_seconds), 1800))},
+                timeout=20,
+            )
+            if not response.ok:
+                raise EngineError(
+                    "Không tạo được mã ghép nối (HTTP " + str(response.status_code) +
+                    "). Hãy bấm Kết nối Chrome lại rồi thử."
+                )
+            result = response.json()
+            code = str(result.get("pairing_code") or "").strip()
+            expires = int(result.get("expires_in") or ttl_seconds)
+            if not code:
+                raise EngineError("Engine không trả về Pairing code.")
+            return {"pairing_code": code, "expires_in": expires}
+
     def bind_available_accounts(self):
         """Associate only locally imported accounts with our managed key."""
         try:

@@ -436,8 +436,10 @@ class MainWindow(QMainWindow):
             "1. Bấm Kết nối Chrome: ứng dụng tự chuẩn bị sub2gen và tạo khóa kết nối.\n"
             "2. Bấm CHUẨN BỊ & MỞ THƯ MỤC TIỆN ÍCH — app tự giải nén và mở thư mục chứa manifest.json.\n"
             "3. Chrome → chrome://extensions → bật Developer mode → Load unpacked → chọn cả THƯ MỤC đó.\n"
-            "4. Mở sub2gen Worker → Options → My account → dán khóa rồi Import/Sync account.\n"
-            "5. Quay lại app bấm Kiểm tra tài khoản; các lần sau tái sử dụng tiện ích đã cấp quyền.\n\n"
+            "4. Trong Options: WebSocket = ws://127.0.0.1:8000/worker_ws, chọn My account.\n"
+            "5. Dán API key và mã Pairing code do app tạo vào hai ô RIÊNG → Save changes.\n"
+            "6. Trở lại popup extension: Reconnect → Sync Google account.\n"
+            "7. Trong app bấm Kiểm tra tài khoản Flow.\n\n"
             "Lưu ý: Chrome không cho chương trình khác đọc phiên đăng nhập hiện tại mà chưa được cấp quyền."
         ))
         self.auto_login_button = button("◎  KẾT NỐI VỚI CHROME ĐANG MỞ", self.login_with_chrome, primary=True)
@@ -456,11 +458,21 @@ class MainWindow(QMainWindow):
         row.addWidget(button("Sao chép đường dẫn thư mục", self.copy_extension_folder))
         body.addLayout(row)
         rowkey = QHBoxLayout()
-        rowkey.addWidget(button("② Mở trang tiện ích trong Chrome", self.open_chrome_extensions))
-        rowkey.addWidget(button("③ Sao chép khóa kết nối", self.copy_extension_key))
+        rowkey.addWidget(button("② Mở tiện ích trong Chrome", self.open_chrome_extensions))
+        rowkey.addWidget(button("③ Sao chép API key", self.copy_extension_key))
         body.addLayout(rowkey)
+
+        body.addWidget(label("Mã ghép nối Chrome Worker (Pairing code, có thời hạn, khác với API key):"))
+        pairrow = QHBoxLayout()
+        self.pair_code_edit = QLineEdit()
+        self.pair_code_edit.setReadOnly(True)
+        self.pair_code_edit.setPlaceholderText("Bấm Tạo mã ghép nối mới...")
+        pairrow.addWidget(self.pair_code_edit, 1)
+        pairrow.addWidget(button("Sao chép mã", self.copy_pairing_code))
+        body.addLayout(pairrow)
+        body.addWidget(button("④ TẠO MÃ GHÉP NỐI (10 PHÚT)", self.generate_pairing_code, primary=True))
         row2 = QHBoxLayout()
-        row2.addWidget(button("③ Kiểm tra tài khoản Flow", self.check_flow_account, primary=True))
+        row2.addWidget(button("⑤ Kiểm tra tài khoản Flow", self.check_flow_account, primary=True))
         row2.addWidget(button("Mở Google Flow", self.open_flow))
         body.addLayout(row2)
         self.account_status = label("Chưa kết nối tài khoản.")
@@ -521,7 +533,7 @@ class MainWindow(QMainWindow):
         self.key_edit.setText(key)
         self.remember.setChecked(True)
         self.auto_progress.setText(
-            "Engine sẵn sàng. Đang mở thư mục tiện ích Chrome đi kèm Setup."
+            "Engine sẵn sàng. Hãy tạo Pairing code để ghép Chrome với app."
         )
         self.account_status.setText(
             "Chưa đồng bộ Google Flow; hãy tải tiện ích trong Chrome và chọn Import/Sync."
@@ -581,7 +593,51 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Chưa có khóa", "Bấm Kết nối với Chrome trước.")
             return
         QApplication.clipboard().setText(key)
-        self.auto_progress.setText("Khóa đã sao chép. Mở sub2gen Worker → Options, chọn My account, dán API Key, Save rồi Import/Sync account. Không dán khóa vào website lạ.")
+        self.auto_progress.setText(
+            "Đã sao chép Managed API key. Dán vào ô Managed API key trong Options. "
+            "Bạn vẫn cần tạo và điền Pairing code ở ô riêng; sau đó Save changes."
+        )
+
+    def generate_pairing_code(self):
+        """Obtain user-approved one-time pairing code without opening Admin."""
+        from .engine import EngineManager, BASE_URL
+        if self.settings.get("gateway_url", "").rstrip("/") != BASE_URL:
+            QMessageBox.warning(self, "Gateway không đúng",
+                "Chức năng tự tạo mã ghép nối chỉ dùng với engine tích hợp ở "
+                "http://127.0.0.1:8000. Hãy bấm Kết nối Chrome trước.")
+            return
+        key = self.secrets.get()
+        if not key:
+            QMessageBox.warning(self, "Chưa có khóa kết nối",
+                "Bấm Kết nối với Chrome đang mở để tạo API key trước.")
+            return
+        self.auto_progress.setText("Đang tạo mã ghép nối mới trên máy...")
+        self.async_call(
+            lambda: EngineManager().create_worker_pairing_code(key, ttl_seconds=600),
+            self.pairing_code_ready,
+            "Không tạo được mã ghép nối",
+        )
+
+    def pairing_code_ready(self, value):
+        code = value["pairing_code"]
+        self.pair_code_edit.setText(code)
+        self.auto_progress.setText(
+            "Mã ghép nối có hiệu lực khoảng " + str(value["expires_in"] // 60) +
+            " phút. Mở sub2gen Worker → biểu tượng bánh răng → Pairing code "
+            "và dán mã này, cùng Managed API key vào ô riêng, sau đó Save changes."
+        )
+
+    def copy_pairing_code(self):
+        code = self.pair_code_edit.text().strip()
+        if not code:
+            QMessageBox.information(self, "Chưa tạo mã",
+                "Hãy bấm TẠO MÃ GHÉP NỐI trước.")
+            return
+        QApplication.clipboard().setText(code)
+        self.auto_progress.setText(
+            "Đã sao chép Pairing code. Dán vào ô Pairing code trong Options, "
+            "KHÔNG dán vào Managed API key. Save changes rồi bấm Reconnect."
+        )
 
     def open_flow(self):
         from .engine import open_chrome_page
