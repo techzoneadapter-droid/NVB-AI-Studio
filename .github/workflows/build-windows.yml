@@ -51,16 +51,18 @@ jobs:
           python scripts/patch_upstream.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Push-Location upstream-sub2gen
-          uv run setup
+          uv lock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen --no-dev setup
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           bun run --cwd apps/captcha-extension build
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Pop-Location
+          python scripts/package_engine.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python -m pip install requests
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/smoke_engine.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python scripts/package_engine.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item (Get-Command uv).Source engine-payload/uv.exe
       - name: Set version
@@ -107,5 +109,5 @@ jobs:
           files: installer-output/*.exe
           body: |
             Windows installer for NVB AI Studio.
-            Backend required: sub2gen must be installed and configured separately.
-            Download the Setup .exe, install, then configure Gateway and API key.
+            Embedded sub2gen backend and Chrome extension. No manual repository installation.
+            Fix: missing eagerly imported runtime provider modules in production-only environment.
