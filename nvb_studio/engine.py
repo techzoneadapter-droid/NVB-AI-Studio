@@ -178,10 +178,70 @@ class EngineManager:
             time.sleep(2)
         raise EngineError("Cài engine quá thời gian 15 phút. Kiểm tra mạng và nhật ký: " + str(log_file))
 
+    @staticmethod
+    def _validate_extension(folder):
+        """Verify the unpacked Chrome extension, not just manifest existence."""
+        try:
+            manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+            if manifest.get("manifest_version") != 3 or manifest.get("name") != "sub2gen Worker":
+                return False
+            required = ("manifest.json", "background.js", "popup.html",
+                        "popup.js", "options.html", "options.js",
+                        "content.js", "stealth.js")
+            return all((folder / name).is_file() for name in required)
+        except (OSError, ValueError, TypeError):
+            return False
+
     def extension_folder(self):
-        folder = self.source / "apps" / "captcha-extension" / "dist"
-        if not (folder / "manifest.json").is_file():
-            raise EngineError("Chưa có extension. Bấm Kết nối Chrome trước.")
+        """Extract Chrome worker directly from Setup into a stable, discoverable folder.
+
+        No running backend, Git, Bun, manual ZIP extraction, or Google cookies
+        are needed to prepare the unpacked extension. Chrome must still obtain
+        the user's permission to load it.
+        """
+        folder = self.root / "chrome-extension"
+        if self._validate_extension(folder):
+            return folder
+        archive = bundled_path("engine-payload") / "sub2gen.zip"
+        if not archive.is_file():
+            raise EngineError(
+                "Bộ cài thiếu sub2gen.zip chứa tiện ích Chrome. "
+                "Hãy cài bản Setup mới nhất, không cần tự tải repo."
+            )
+        self.root.mkdir(parents=True, exist_ok=True)
+        staging = self.root / "chrome-extension.unpacking"
+        if staging.exists():
+            shutil.rmtree(staging)
+        staging.mkdir(parents=True)
+        prefix = "apps/captcha-extension/dist/"
+        try:
+            with zipfile.ZipFile(archive) as zf:
+                copied = 0
+                for member in zf.infolist():
+                    name = member.filename.replace(chr(92), "/")
+                    if not name.startswith(prefix) or member.is_dir():
+                        continue
+                    relative = Path(name[len(prefix):])
+                    if relative.is_absolute() or ".." in relative.parts:
+                        raise EngineError("Gói tiện ích Chrome có tên tệp không an toàn.")
+                    target = (staging / relative).resolve()
+                    if not target.is_relative_to(staging.resolve()):
+                        raise EngineError("Gói tiện ích Chrome có đường dẫn không an toàn.")
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(member) as src, open(target, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                    copied += 1
+            if not copied or not self._validate_extension(staging):
+                raise EngineError(
+                    "Bộ cài chứa tiện ích Chrome chưa đầy đủ (manifest.js/background). "
+                    "Hãy sử dụng Setup mới; không cần tự giải nén hoặc tải GitHub."
+                )
+            if folder.exists():
+                shutil.rmtree(folder)
+            staging.rename(folder)
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging, ignore_errors=True)
         return folder
 
     def _admin(self):

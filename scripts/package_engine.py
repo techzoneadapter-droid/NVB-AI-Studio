@@ -33,6 +33,11 @@ with zipfile.ZipFile(archive) as bundle:
     required = {
         "pyproject.toml", "uv.lock", "apps/api/static/index.html",
         "apps/captcha-extension/dist/manifest.json",
+        "apps/captcha-extension/dist/background.js",
+        "apps/captcha-extension/dist/popup.html",
+        "apps/captcha-extension/dist/options.html",
+        "apps/captcha-extension/dist/content.js",
+        "apps/captcha-extension/dist/stealth.js",
         "config/setting_example.toml",
     }
     absent = required - set(bundle.namelist())

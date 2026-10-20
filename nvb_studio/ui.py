@@ -434,19 +434,31 @@ class MainWindow(QMainWindow):
         frame, body = panel_layout()
         body.addWidget(label(
             "1. Bấm Kết nối Chrome: ứng dụng tự chuẩn bị sub2gen và tạo khóa kết nối.\n"
-            "2. Chỉ lần đầu: Chrome yêu cầu bạn cấp quyền cho tiện ích sub2gen Worker.\n"
-            "3. Mở tiện ích → Options → chọn My account, dán khóa rồi Import/Sync account.\n"
-            "4. Quay lại app bấm Kiểm tra tài khoản; lần sau dùng lại kết nối đã cấp quyền.\n\n"
+            "2. Bấm CHUẨN BỊ & MỞ THƯ MỤC TIỆN ÍCH — app tự giải nén và mở thư mục chứa manifest.json.\n"
+            "3. Chrome → chrome://extensions → bật Developer mode → Load unpacked → chọn cả THƯ MỤC đó.\n"
+            "4. Mở sub2gen Worker → Options → My account → dán khóa rồi Import/Sync account.\n"
+            "5. Quay lại app bấm Kiểm tra tài khoản; các lần sau tái sử dụng tiện ích đã cấp quyền.\n\n"
             "Lưu ý: Chrome không cho chương trình khác đọc phiên đăng nhập hiện tại mà chưa được cấp quyền."
         ))
         self.auto_login_button = button("◎  KẾT NỐI VỚI CHROME ĐANG MỞ", self.login_with_chrome, primary=True)
         body.addWidget(self.auto_login_button)
-        self.auto_progress = label("Sẵn sàng. Lần đầu có thể mất vài phút để tự cài Python và phụ thuộc cho engine.")
+        self.auto_progress = label("Sẵn sàng. Tiện ích Chrome đã nằm trong gói Setup; bạn không phải tải trên GitHub.")
         body.addWidget(self.auto_progress)
+        body.addWidget(label("Thư mục tiện ích có sẵn trong máy (Chrome chọn THƯ MỤC, không chọn file manifest.json):"))
+        self.extension_folder_edit = QLineEdit()
+        self.extension_folder_edit.setReadOnly(True)
+        from .config import data_dir
+        self.extension_folder_edit.setText(str(data_dir() / "engine" / "chrome-extension"))
+        self.extension_folder_edit.setToolTip("App sẽ tự chuẩn bị và xác minh đủ tệp trước khi mở thư mục.")
+        body.addWidget(self.extension_folder_edit)
         row = QHBoxLayout()
-        row.addWidget(button("① Mở cài đặt tiện ích Chrome", self.open_extension_setup))
-        row.addWidget(button("② Sao chép khóa kết nối", self.copy_extension_key))
+        row.addWidget(button("① CHUẨN BỊ & MỞ THƯ MỤC TIỆN ÍCH", self.open_extension_setup, primary=True))
+        row.addWidget(button("Sao chép đường dẫn thư mục", self.copy_extension_folder))
         body.addLayout(row)
+        rowkey = QHBoxLayout()
+        rowkey.addWidget(button("② Mở trang tiện ích trong Chrome", self.open_chrome_extensions))
+        rowkey.addWidget(button("③ Sao chép khóa kết nối", self.copy_extension_key))
+        body.addLayout(rowkey)
         row2 = QHBoxLayout()
         row2.addWidget(button("③ Kiểm tra tài khoản Flow", self.check_flow_account, primary=True))
         row2.addWidget(button("Mở Google Flow", self.open_flow))
@@ -508,8 +520,12 @@ class MainWindow(QMainWindow):
         self.gateway_edit.setText(BASE_URL)
         self.key_edit.setText(key)
         self.remember.setChecked(True)
-        self.auto_progress.setText("Engine sẵn sàng. Hãy cấp quyền tiện ích Chrome một lần.")
-        self.account_status.setText("Chưa thấy tài khoản đã đồng bộ; hãy mở tiện ích và chọn Import/Sync.")
+        self.auto_progress.setText(
+            "Engine sẵn sàng. Đang mở thư mục tiện ích Chrome đi kèm Setup."
+        )
+        self.account_status.setText(
+            "Chưa đồng bộ Google Flow; hãy tải tiện ích trong Chrome và chọn Import/Sync."
+        )
         self.open_extension_setup()
 
     def flow_failed(self, reason):
@@ -517,17 +533,45 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "Kết nối Flow", reason[:1800])
 
     def open_extension_setup(self):
-        from .engine import EngineManager, open_chrome_page
+        """Prepare from the installed payload and reveal the REAL folder."""
+        from .engine import EngineManager
         try:
             folder = EngineManager().extension_folder()
+            self.extension_folder_edit.setText(str(folder))
             QApplication.clipboard().setText(str(folder))
-            import subprocess
-            subprocess.Popen(["explorer.exe", "/select," + str(folder / "manifest.json")])
-            open_chrome_page("chrome://extensions/")
+            if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))):
+                QMessageBox.warning(self, "Không mở được thư mục",
+                    "Đã chuẩn bị tiện ích nhưng Windows không mở Explorer. "
+                    "Bạn có thể sao chép đường dẫn hiển thị phía trên.")
+                return
             self.auto_progress.setText(
-                "Trong Chrome → bật Chế độ nhà phát triển → Tải tiện ích đã giải nén "
-                "→ chọn thư mục (đã chép đường dẫn). Tiện ích cần quyền duyệt web/cookie; chỉ chấp thuận nếu bạn tin tưởng."
+                "ĐÃ TÌM THẤY tiện ích (manifest.json, background.js...). "
+                "Đường dẫn đã sao chép. Mở Chrome → chrome://extensions → bật "
+                "Chế độ nhà phát triển → Tải tiện ích đã giải nén → chọn THƯ MỤC đang mở."
             )
+            self.account_status.setText(
+                "Tiện ích đã có trên máy. Chờ bạn cho phép Chrome tải tiện ích, rồi đồng bộ tài khoản."
+            )
+        except Exception as exc:
+            self.auto_progress.setText("Không chuẩn bị được tiện ích: " + str(exc)[:350])
+            QMessageBox.warning(self, "Thiếu tiện ích Chrome",
+                "App chưa tạo được thư mục tiện ích từ Setup. "
+                "Không cần tìm tải trên GitHub.\n\n" + str(exc)[:1000])
+
+    def copy_extension_folder(self):
+        from .engine import EngineManager
+        try:
+            folder = EngineManager().extension_folder()
+            self.extension_folder_edit.setText(str(folder))
+            QApplication.clipboard().setText(str(folder))
+            self.auto_progress.setText("Đã sao chép đường dẫn THƯ MỤC (không phải file manifest.json).")
+        except Exception as exc:
+            QMessageBox.warning(self, "Tiện ích Chrome", str(exc))
+
+    def open_chrome_extensions(self):
+        from .engine import open_chrome_page
+        try:
+            open_chrome_page("chrome://extensions/")
         except Exception as exc:
             QMessageBox.warning(self, "Chrome", str(exc))
 
